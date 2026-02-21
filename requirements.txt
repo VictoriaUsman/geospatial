@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+psycopg2-binary
+sqlalchemy
+geopandas
+shapely
+gdal
+h3
+google-cloud-pubsub
+prometheus-client
+pytest

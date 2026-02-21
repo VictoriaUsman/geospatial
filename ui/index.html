@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Urban Intelligence — Traffic Heatmap</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Leaflet.heat -->
+  <script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 12px 20px;
+      background: #1a1d2e;
+      border-bottom: 1px solid #2d3148;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 1000;
+    }
+
+    header h1 {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      color: #fff;
+    }
+
+    header span {
+      font-size: 11px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    #status-bar {
+      padding: 6px 20px;
+      background: #13151f;
+      border-bottom: 1px solid #2d3148;
+      display: flex;
+      gap: 24px;
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #334155;
+    }
+
+    .dot.green { background: #22c55e; box-shadow: 0 0 6px #22c55e88; }
+    .dot.red   { background: #ef4444; }
+    .dot.pulse {
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    #map {
+      flex: 1;
+    }
+
+    #legend {
+      position: absolute;
+      bottom: 30px;
+      right: 16px;
+      z-index: 1000;
+      background: #1a1d2ecc;
+      backdrop-filter: blur(8px);
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 12px;
+    }
+
+    #legend h3 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #94a3b8;
+      margin-bottom: 10px;
+    }
+
+    .legend-bar {
+      width: 160px;
+      height: 10px;
+      border-radius: 5px;
+      background: linear-gradient(to right, #22c55e, #facc15, #f97316, #ef4444);
+      margin-bottom: 4px;
+    }
+
+    .legend-labels {
+      display: flex;
+      justify-content: space-between;
+      color: #64748b;
+      font-size: 10px;
+    }
+
+    #controls {
+      position: absolute;
+      top: 90px;
+      left: 16px;
+      z-index: 1000;
+      background: #1a1d2ecc;
+      backdrop-filter: blur(8px);
+      border: 1px solid #2d3148;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 12px;
+      min-width: 160px;
+    }
+
+    #controls h3 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #94a3b8;
+      margin-bottom: 10px;
+    }
+
+    .control-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      gap: 12px;
+    }
+
+    .control-row label {
+      color: #94a3b8;
+      font-size: 11px;
+    }
+
+    input[type=range] {
+      width: 80px;
+      accent-color: #6366f1;
+    }
+
+    button#refresh {
+      margin-top: 8px;
+      width: 100%;
+      padding: 6px;
+      background: #6366f1;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-size: 11px;
+      cursor: pointer;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    button#refresh:hover { background: #4f46e5; }
+
+    #city-selector {
+      position: absolute;
+      top: 90px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      background: #1a1d2ecc;
+      backdrop-filter: blur(8px);
+      border: 1px solid #2d3148;
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    #city-selector span {
+      font-size: 11px;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-right: 4px;
+      white-space: nowrap;
+    }
+
+    .city-btn {
+      padding: 5px 12px;
+      border-radius: 6px;
+      border: 1px solid #2d3148;
+      background: transparent;
+      color: #94a3b8;
+      font-size: 12px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+
+    .city-btn:hover {
+      background: #2d3148;
+      color: #fff;
+    }
+
+    .city-btn.active {
+      background: #6366f1;
+      border-color: #6366f1;
+      color: #fff;
+    }
+
+    .city-btn .flag {
+      margin-right: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Urban Intelligence Platform</h1>
+  <span>Traffic Heatmap</span>
+</header>
+
+<div id="status-bar">
+  <div class="status-item">
+    <div class="dot pulse" id="api-dot"></div>
+    <span id="api-status">Connecting...</span>
+  </div>
+  <div class="status-item">
+    <div class="dot green pulse"></div>
+    <span id="point-count">Loading heatmap...</span>
+  </div>
+  <div class="status-item">
+    <div class="dot" style="background:#6366f1"></div>
+    <span id="last-updated">—</span>
+  </div>
+</div>
+
+<div id="city-selector">
+  <span>City</span>
+  <button class="city-btn active" data-lat="14.5995" data-lon="120.9842" data-zoom="13" data-id="manila">🇵🇭 Manila</button>
+  <button class="city-btn" data-lat="14.6760" data-lon="121.0437" data-zoom="13" data-id="qc">🇵🇭 Quezon City</button>
+  <button class="city-btn" data-lat="10.3157" data-lon="123.8854" data-zoom="13" data-id="cebu">🇵🇭 Cebu</button>
+  <button class="city-btn" data-lat="7.1907" data-lon="125.4553" data-zoom="13" data-id="davao">🇵🇭 Davao</button>
+  <button class="city-btn" data-lat="1.3521" data-lon="103.8198" data-zoom="13" data-id="singapore">🇸🇬 Singapore</button>
+  <button class="city-btn" data-lat="13.7563" data-lon="100.5018" data-zoom="12" data-id="bangkok">🇹🇭 Bangkok</button>
+  <button class="city-btn" data-lat="35.6762" data-lon="139.6503" data-zoom="13" data-id="tokyo">🇯🇵 Tokyo</button>
+</div>
+
+<div id="map"></div>
+
+<div id="legend">
+  <h3>Traffic Intensity</h3>
+  <div class="legend-bar"></div>
+  <div class="legend-labels">
+    <span>Low</span>
+    <span>Medium</span>
+    <span>High</span>
+  </div>
+</div>
+
+<div id="controls">
+  <h3>Controls</h3>
+  <div class="control-row">
+    <label>Opacity</label>
+    <input type="range" id="opacity" min="1" max="10" value="7" />
+  </div>
+  <button id="refresh">Refresh Data</button>
+</div>
+
+<script>
+  const API_BASE    = "http://localhost:8080";
+  const TOMTOM_KEY  = "TnW8nPP1KWloR0qxxJwYwUkkPShv99nx";
+
+  // --- Map setup ---
+  const map = L.map("map", {
+    center: [14.5995, 120.9842],
+    zoom: 13,
+    zoomControl: true,
+  });
+
+  // Base map
+  L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+    attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+    maxZoom: 19,
+  }).addTo(map);
+
+  // --- TomTom real-time traffic flow layer ---
+  const trafficLayer = L.tileLayer(
+    `https://api.tomtom.com/traffic/map/4/tile/flow/relative/{z}/{x}/{y}.png?key=${TOMTOM_KEY}`,
+    {
+      maxZoom: 19,
+      opacity: 0.6,
+      attribution: '&copy; <a href="https://tomtom.com">TomTom</a>',
+    }
+  ).addTo(map);
+
+  // --- Our PostGIS heatmap layer ---
+  let heatLayer = null;
+
+  function getHeatmapOptions() {
+    return {
+      radius: 18,
+      blur: 12,
+      maxZoom: 17,
+      max: 1.0,
+      minOpacity: parseInt(document.getElementById("opacity").value) / 10,
+      gradient: { 0.2: "#1d4ed8", 0.4: "#06b6d4", 0.6: "#22c55e", 0.8: "#facc15", 1.0: "#ef4444" },
+    };
+  }
+
+  async function loadHeatmap() {
+    document.getElementById("point-count").textContent = "Fetching DB data...";
+    try {
+      const res = await fetch(`${API_BASE}/traffic/heatmap`);
+      const data = await res.json();
+      if (heatLayer) map.removeLayer(heatLayer);
+      heatLayer = L.heatLayer(data.points, getHeatmapOptions()).addTo(map);
+      document.getElementById("point-count").textContent = `${data.count} points from PostGIS`;
+      document.getElementById("last-updated").textContent =
+        "Updated " + new Date().toLocaleTimeString();
+    } catch (err) {
+      document.getElementById("point-count").textContent = "DB unavailable";
+    }
+  }
+
+  // --- Opacity control ---
+  document.getElementById("opacity").addEventListener("input", () => {
+    if (heatLayer) heatLayer.setOptions(getHeatmapOptions());
+  });
+
+  // --- Refresh ---
+  document.getElementById("refresh").addEventListener("click", loadHeatmap);
+
+  // --- API health check ---
+  async function checkHealth() {
+    const dot    = document.getElementById("api-dot");
+    const status = document.getElementById("api-status");
+    try {
+      const res = await fetch(`${API_BASE}/health`);
+      await res.json();
+      dot.classList.add("green");
+      dot.style.background = "#22c55e";
+      status.textContent = "API online";
+    } catch {
+      dot.style.background = "#ef4444";
+      dot.classList.remove("green");
+      status.textContent = "API offline";
+    }
+  }
+
+  // --- City selector ---
+  const MANILA_ID = "manila";
+  let currentCity = MANILA_ID;
+
+  document.querySelectorAll(".city-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".city-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+
+      const lat  = parseFloat(btn.dataset.lat);
+      const lon  = parseFloat(btn.dataset.lon);
+      const zoom = parseInt(btn.dataset.zoom);
+      currentCity = btn.dataset.id;
+
+      map.flyTo([lat, lon], zoom, { duration: 1.2 });
+
+      // Only load PostGIS heatmap for Manila (only city with DB data)
+      if (currentCity === MANILA_ID) {
+        loadHeatmap();
+      } else {
+        if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
+        document.getElementById("point-count").textContent = "TomTom live data only";
+        document.getElementById("last-updated").textContent = "No DB data for this city";
+      }
+    });
+  });
+
+  checkHealth();
+  loadHeatmap();
+  setInterval(checkHealth, 10000);
+</script>
+
+</body>
+</html>
